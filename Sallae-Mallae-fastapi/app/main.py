@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.db.database import init_db
-from app.services import florence
+from app.services import labeling
 from app.api.v1.router import router as v1_router
 
 logging.basicConfig(level=logging.INFO)
@@ -15,19 +15,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """서버 시작/종료 시 실행되는 이벤트"""
     # ── Startup ──
     logger.info("🚀 살래말래 API 서버 시작")
-
-    # DB 테이블 생성
     await init_db()
     logger.info("✅ DB 초기화 완료")
 
-    # Florence-2 모델 로드 (1회)
-    florence.load_model(settings.florence_model_id)
+    # YOLO 모델 로드 (라벨링/파인튜닝용, 1회)
+    labeling.load_yolo_model(settings.yolo_model)
 
     yield
-
     # ── Shutdown ──
     logger.info("🛑 서버 종료")
 
@@ -41,9 +37,8 @@ app = FastAPI(
 
 ### 처리 흐름
 1. Flutter 앱 → `POST /api/v1/analyze` (이미지 base64 + 맥락)
-2. **Florence-2** (로컬) → 상품 캡션 생성
-3. **Gemini Flash** → 캡션 + 맥락 → 판단 JSON
-4. 결과 반환 + 히스토리 DB 저장
+2. **Gemini Flash Vision** → 이미지 + 맥락 → 판단 JSON 반환
+3. 결과 반환 + 히스토리 DB 저장
     """,
     version="1.0.0",
     debug=settings.debug,
