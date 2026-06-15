@@ -1,3 +1,4 @@
+from app.services.supabase_rag import query_rag_context  # 👈 추가
 """
 Gemini Flash LLM 서비스
 - Florence-2 캡션 + 맥락 정보 → 살래/고민/말래 JSON 판단
@@ -41,8 +42,14 @@ SYSTEM_PROMPT = """
 """.strip()
 
 
-def _build_user_prompt(caption: str, request: AnalyzeRequest) -> str:
+def _build_user_prompt(
+    caption: str,
+    request: AnalyzeRequest,
+    rag_context: str = ""
+) -> str:
+
     ctx = request.context
+
     lines = [
         f"[상품 이미지 분석]\n{caption}",
         "",
@@ -56,11 +63,17 @@ def _build_user_prompt(caption: str, request: AnalyzeRequest) -> str:
         f"- 상품 상태: {_condition_label(ctx.condition)}",
         f"- 중요 기준: {', '.join(ctx.criteria) if ctx.criteria else '미선택'}",
     ]
+
+    if rag_context:
+        lines.append("")
+        lines.append(rag_context)
+
     return "\n".join(lines)
 
 
+
 def _condition_label(condition) -> str:
-    mapping = {"good": "문음(좋음)", "normal": "보통", "poor": "불량"}
+    mapping = {"good": "좋음", "normal": "보통", "poor": "불량"}
     return mapping.get(str(condition), "미입력") if condition else "미입력"
 
 
@@ -79,7 +92,12 @@ async def judge(
 
     model_name = model or settings.gemini_model
     url = GEMINI_API_URL.format(model=model_name, api_key=settings.gemini_api_key)
-    user_prompt = _build_user_prompt(caption, request)
+    # 👈 [Retrieval] Gemini 프롬프트를 짜기 전에 Supabase를 먼저 찌릅니다!
+    rag_context = await query_rag_context(caption, request.context.category)
+
+    # 👈 주입 인자에 rag_context를 넘겨줍니다.
+    user_prompt = _build_user_prompt(caption, request, rag_context)
+
 
     payload = {
         "contents": [
