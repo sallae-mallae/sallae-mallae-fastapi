@@ -69,8 +69,10 @@ async def query_rag_context(
             for p in products_resp.data:
 
                 product_name = p["name"].lower()
+                product_brand = p.get("brand", "").lower()
 
-                if product_name in caption_lower:
+                # 👇 이름 전체가 있거나, 브랜드명(New Balance 등)이라도 캡션에 있으면 매칭되도록 수정됨!
+                if product_name in caption_lower or (product_brand and product_brand in caption_lower):
 
                     product_context = f"""
 - 매칭된 상품: {p['name']} ({p['brand']})

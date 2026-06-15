@@ -62,7 +62,12 @@ def generate_caption(image_base64: str) -> str:
         import torch
 
         # base64 → PIL Image
-        image_data = base64.b64decode(image_base64)
+        #image_data = base64.b64decode(image_base64)
+        # (아래 방어 코드로 교체!)
+        clean_b64 = image_base64.strip()
+        padded_b64 = clean_b64 + "=" * (-len(clean_b64) % 4)
+        image_data = base64.b64decode(padded_b64)
+
         image = Image.open(BytesIO(image_data)).convert("RGB")
 
         # Florence-2 캡션 생성 태스크: <MORE_DETAILED_CAPTION>
@@ -89,4 +94,37 @@ def generate_caption(image_base64: str) -> str:
 
     except Exception as e:
         logger.error(f"Florence-2 캡션 생성 오류: {e}")
+        return "상품 이미지 (캡션 생성 중 오류)"
+
+def test_local_image(image_path: str) -> str:
+    """test_pipeline.py에서 로컬 이미지를 직접 테스트하기 위한 함수"""
+    if not is_loaded():
+        return "Florence-2 미로드"
+    
+    try:
+        import torch
+        # 로컬 파일 경로에서 직접 이미지 열기
+        image = Image.open(image_path).convert("RGB")
+
+        task_prompt = "<MORE_DETAILED_CAPTION>"
+        inputs = _processor(text=task_prompt, images=image, return_tensors="pt").to(_device)
+
+        with torch.no_grad():
+            generated_ids = _model.generate(
+                input_ids=inputs["input_ids"],
+                pixel_values=inputs["pixel_values"],
+                max_new_tokens=512,
+                num_beams=3,
+            )
+
+        generated_text = _processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+        result = _processor.post_process_generation(
+            generated_text,
+            task=task_prompt,
+            image_size=(image.width, image.height),
+        )
+        return result.get(task_prompt, "")
+
+    except Exception as e:
+        logger.error(f"로컬 이미지 캡션 생성 오류: {e}")
         return "상품 이미지 (캡션 생성 중 오류)"

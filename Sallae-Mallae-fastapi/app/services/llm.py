@@ -39,6 +39,16 @@ SYSTEM_PROMPT = """
   "caution": "주의사항 (있으면 1문장, 없으면 null)",
   "recommendation": "차라리 당근마켓을 보라든가 하는 대안 추천 (1문장, buy 시 null 가능)"
 }
+반드시 다음 JSON 형식만 반환하세요:
+{
+  "verdict": "buy" | "maybe" | "no",
+  "reason": "팩트폭행이 담긴 찰진 잔소리 (2~3문장)",
+  "caution": "주의사항 (있으면 1문장, 없으면 null)",
+  "recommendation": "차라리 당근마켓을 보라든가 하는 대안 추천 (1문장, buy 시 null 가능)"
+}
+
+[중요 규칙]
+JSON 텍스트 내부에는 절대 큰따옴표(")를 사용하지 마세요! 단어를 강조하고 싶다면 반드시 작은따옴표(')만 사용하세요.
 """.strip()
 
 

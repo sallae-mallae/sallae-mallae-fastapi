@@ -10,7 +10,8 @@ async def main():
     florence.load_model(settings.florence_model_id)
 
     # 이미지 분석
-    caption = florence.test_local_image("test.png")
+    # 이미지 분석 (터미널 실행 기준 경로로 변경)
+    caption = florence.test_local_image("app/test.png")
 
     print("\n===== FLORENCE CAPTION =====")
     print(caption)
