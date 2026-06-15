@@ -32,24 +32,63 @@ SYSTEM_PROMPT = """
 - maybe (고민해요): 굳이 지금 사야 하나 싶을 때 (한 번 더 생각하라고 잔소리)
 - no (말래요): 예산 초과, 불량 상태, 예쁜 쓰레기일 경우 (호구 당하지 말라고 극딜)
 
-반드시 다음 JSON 형식만 반환하세요:
+[반드시 준수할 JSON 형식]
 {
   "verdict": "buy" | "maybe" | "no",
   "reason": "팩트폭행이 담긴 찰진 잔소리 (2~3문장)",
   "caution": "주의사항 (있으면 1문장, 없으면 null)",
-  "recommendation": "차라리 당근마켓을 보라든가 하는 대안 추천 (1문장, buy 시 null 가능)"
-}
-반드시 다음 JSON 형식만 반환하세요:
-{
-  "verdict": "buy" | "maybe" | "no",
-  "reason": "팩트폭행이 담긴 찰진 잔소리 (2~3문장)",
-  "caution": "주의사항 (있으면 1문장, 없으면 null)",
-  "recommendation": "차라리 당근마켓을 보라든가 하는 대안 추천 (1문장, buy 시 null 가능)"
+  "recommendation": "대안 추천 (1문장, buy 시 null 가능)"
 }
 
-[중요 규칙]
-JSON 텍스트 내부에는 절대 큰따옴표(")를 사용하지 마세요! 단어를 강조하고 싶다면 반드시 작은따옴표(')만 사용하세요.
+[엄격한 기술 규칙]
+1. 답변은 오직 위 JSON 형식만 출력하세요.
+2. 마크다운 코드 블록(```json ... ```)으로 감싸서 출력하세요.
+3. JSON 내부의 모든 문자열에는 큰따옴표(")만 사용하고, 강조하고 싶은 문구는 작은따옴표(')를 사용하세요.
+4. 이유(reason)를 포함한 모든 답변 값에 절대 줄바꿈을 포함하지 마세요.
+5. JSON 포맷이 깨지지 않도록 마지막까지 반드시 중괄호로 닫으세요.
 """.strip()
+
+async def judge_purchase(caption: str, rag_context: str, request: AnalyzeRequest) -> AnalyzeResponse:
+    url = GEMINI_API_URL.format(model="gemini-2.5-flash", api_key=settings.gemini_api_key)
+    
+    # 프롬프트 구성 (RAG 데이터 주입)
+    prompt = f"{SYSTEM_PROMPT}\n\n[상품 정보]: {caption}\n[맥락 정보]: {rag_context}\n[사용자 질문]: {request.question}"
+    
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}]
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client: # 30초 타임아웃 설정
+        try:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            
+            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+            # JSON 추출을 위한 정규표현식 (마크다운 제거)
+            match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+            if not match:
+                raise ValueError("JSON 형식을 찾을 수 없음")
+                
+            parsed = json.loads(match.group(0))
+            
+            return AnalyzeResponse(
+                verdict=parsed.get("verdict", "maybe"),
+                verdict_label="결정 완료",
+                reason=parsed.get("reason", "판단 불가"),
+                caution=parsed.get("caution"),
+                recommendation=parsed.get("recommendation"),
+                caption=caption
+            )
+        except Exception as e:
+            logger.error(f"Gemini 호출 실패: {e}")
+            # 실패 시에도 최소한의 응답을 반환하여 서버가 안 죽게 함
+            return AnalyzeResponse(
+                verdict=Verdict.maybe,
+                verdict_label="고민해요",
+                reason="AI가 판단 중 지쳤나 봐요. 다시 시도해 볼래?",
+                caption=caption
+            )
 
 
 def _build_user_prompt(
