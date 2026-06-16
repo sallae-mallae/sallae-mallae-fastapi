@@ -1,57 +1,139 @@
 """
-/api/v1/analyze
-Flutter → 이미지 + 질문 + 맥락 → 살래/고민/말래 판단
+/api/v1/analyze       — Flutter 연동 (base64 JSON)
+/api/v1/analyze/test  — Swagger 테스트용 (파일 업로드, base64 불필요)
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+import base64
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.schemas.analyze import AnalyzeRequest, AnalyzeResponse
-from app.services import florence, llm
+from app.schemas.analyze import AnalyzeRequest, AnalyzeResponse, ContextInput
+from app.services import florence, rag
+from app.services import llm
 from app.services.history_service import save_history
 
 router = APIRouter()
 
 
-@router.post(
-    "/analyze",
-    response_model=AnalyzeResponse,
-    summary="상품 구매 판단",
-    description="""
-카메라로 촬영한 상품 이미지와 맥락 정보를 전송하면 AI가 살래/고민해요/말래요를 판단합니다.
-
-**처리 흐름:**
-1. Florence-2 → 이미지 캡션 생성
-2. Gemini Flash → 캡션 + 맥락 → 판단 JSON
-3. DB 히스토리 저장 (save_image 옵션)
-""",
-)
-async def analyze_product(
+async def _run_pipeline(
     request: AnalyzeRequest,
-    ai_model: str | None = Query(None, description="AI 모델 override (설정 화면 연동)"),
-    db: AsyncSession = Depends(get_db),
+    ai_model: str | None,
+    db: AsyncSession,
 ) -> AnalyzeResponse:
-    # 1. Florence-2: 이미지 → 캡션
+    """
+    공통 파이프라인
+    1. Florence-2  → 이미지 캡션
+    2. Supabase RAG → 관련 상품 정보/후회 사례
+    3. Gemini      → 캡션 + RAG + 맥락 → 판단
+    4. DB 히스토리 저장
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # 1. 이미지 유효성 검사 (base64 디코딩 가능 여부)
+    try:
+        base64.b64decode(request.image_base64, validate=True)
+    except Exception:
+        raise HTTPException(status_code=422, detail="image_base64가 유효한 base64 문자열이 아닙니다.")
+
+    # 2. Florence-2: 이미지 → 캡션
     try:
         caption = florence.generate_caption(request.image_base64)
     except Exception as e:
-        raise HTTPException(status_code=422, detail=f"이미지 처리 오류: {e}")
+        raise HTTPException(status_code=422, detail=f"이미지 캡션 생성 오류: {e}")
 
-    # 2. Gemini: 캡션 + 맥락 → 판단
+    # 3. Supabase RAG: 캡션 → 관련 정보 검색
     try:
-        result = await llm.judge(caption=caption, request=request, model=ai_model)
+        rag_context = await rag.search(caption)
+    except Exception as e:
+        logger.warning(f"RAG 검색 실패 (무시하고 진행): {e}")
+        rag_context = ""
+
+    # 4. Gemini: 캡션 + RAG + 맥락 → 판단
+    try:
+        result = await llm.judge(
+            caption=caption,
+            rag_context=rag_context,
+            request=request,
+            model=ai_model,
+        )
+        result.rag_used = bool(rag_context)
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"AI 판단 오류: {e}")
 
-    # 3. 히스토리 저장
+    # 5. 히스토리 저장
     try:
         record = await save_history(db, request, result)
         result.history_id = record.id
     except Exception as e:
-        # 저장 실패해도 결과는 반환
-        import logging
-        logging.getLogger(__name__).error(f"히스토리 저장 실패: {e}")
+        logger.error(f"히스토리 저장 실패: {e}")
 
     return result
+
+
+@router.post(
+    "/analyze",
+    response_model=AnalyzeResponse,
+    summary="상품 구매 판단 (Flutter 연동)",
+    description="""
+**Flutter 앱 전용** — image_base64를 JSON 바디로 전송합니다.
+
+처리 흐름:
+1. **Florence-2** → 이미지 캡션 생성
+2. **Supabase RAG** → 캡션으로 유사 상품 정보/후회 사례 검색
+3. **Gemini Flash** → 캡션 + RAG 족보 + 맥락 → 잔소리 판단 JSON
+
+> Swagger에서 직접 테스트하려면 `/api/v1/analyze/test` 를 사용하세요 (파일 업로드 방식).
+""",
+)
+async def analyze_product(
+    request: AnalyzeRequest,
+    ai_model: str | None = Query(None, description="Gemini 모델 override"),
+    db: AsyncSession = Depends(get_db),
+) -> AnalyzeResponse:
+    return await _run_pipeline(request, ai_model, db)
+
+
+@router.post(
+    "/analyze/test",
+    response_model=AnalyzeResponse,
+    summary="상품 구매 판단 — Swagger 테스트용 (파일 업로드)",
+    description="""
+**Swagger UI / Postman 테스트 전용** — 이미지 파일을 직접 업로드합니다.
+base64 변환 없이 바로 테스트할 수 있습니다.
+
+나머지 파라미터(question, category 등)는 Form 필드로 입력하세요.
+""",
+)
+async def analyze_product_test(
+    image: UploadFile = File(..., description="상품 이미지 파일 (JPEG)"),
+    question: str | None = Form(None, example="이 가방 살 만한가요?"),
+    category: str | None = Form(None, example="가방"),
+    price: str | None = Form(None, example="50,000원"),
+    purpose: str | None = Form(None, example="매일 쓰는 가방"),
+    condition: str | None = Form(None, description="good / normal / poor"),
+    criteria: str | None = Form(None, description="콤마 구분. 예: 가격,상태"),
+    ai_model: str | None = Form(None),
+    db: AsyncSession = Depends(get_db),
+) -> AnalyzeResponse:
+    raw = await image.read()
+    image_base64 = base64.b64encode(raw).decode()
+
+    criteria_list = [c.strip() for c in criteria.split(",")] if criteria else []
+
+    request = AnalyzeRequest(
+        image_base64=image_base64,
+        question=question,
+        context=ContextInput(
+            category=category,
+            price=price,
+            purpose=purpose,
+            condition=condition,
+            criteria=criteria_list,
+        ),
+        save_image=False,
+    )
+    return await _run_pipeline(request, ai_model, db)

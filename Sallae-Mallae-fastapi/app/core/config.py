@@ -13,8 +13,17 @@ class Settings(BaseSettings):
     # Florence-2
     florence_model_id: str = "microsoft/Florence-2-base"
 
+    # Supabase RAG
+    supabase_url: str = ""
+    supabase_key: str = ""
+    supabase_table: str = "products"      # RAG 검색 테이블
+    supabase_match_count: int = 5         # 검색 결과 개수
+
     # 이미지 저장
     save_images: bool = False
+
+    # YOLO 모델 (라벨링/파인튜닝용)
+    yolo_model: str = "yolo11n.pt"
 
     # DB
     database_url: str = "sqlite+aiosqlite:///./sallae_mallae.db"

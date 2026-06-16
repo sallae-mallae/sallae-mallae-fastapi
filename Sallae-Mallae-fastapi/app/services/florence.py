@@ -1,8 +1,3 @@
-"""
-Florence-2 서비스
-- 서버 시작 시 1회 모델 로드 (lifespan)
-- 이미지(base64) → 상품 인식 캡션 텍스트 생성
-"""
 import base64
 import logging
 import re
@@ -12,7 +7,6 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-# 전역 모델 상태
 _model: Any = None
 _processor: Any = None
 _device: str = "cpu"
@@ -33,7 +27,7 @@ def load_model(model_id: str) -> None:
         _model.eval()
         logger.info("Florence-2 로드 완료 ✅")
     except Exception as e:
-        logger.error(f"Florence-2 로드 실패: {e}")
+        logger.warning(f"Florence-2 로드 실패 (fallback 모드로 동작): {e}")
         _model = None
         _processor = None
 
@@ -41,11 +35,17 @@ def is_loaded() -> bool:
     return _model is not None and _processor is not None
 
 def generate_caption(image_base64: str) -> str:
+    """
+    이미지 base64 → 상품 캡션 텍스트
+    Florence-2 미로드 시 fallback 반환
+    """
     if not is_loaded():
-        return "상품 이미지 (AI 캡션 생성 불가)"
+        logger.warning("Florence-2 미로드 — fallback 캡션 사용")
+        return "상품 이미지 (Florence-2 캡션 생성 불가 — fallback 모드)"
+
     try:
         import torch
-        # [방어코드] 줄바꿈, 공백, 헤더 제거 후 패딩 복구
+        # [동환님 방어코드] 줄바꿈, 공백, 헤더 제거 후 패딩 복구
         if "," in image_base64:
             image_base64 = image_base64.split(",")[1]
         clean_b64 = re.sub(r'\s+', '', image_base64) 
@@ -69,6 +69,7 @@ def generate_caption(image_base64: str) -> str:
             generated_text, task=task_prompt, image_size=(image.width, image.height),
         )
         caption = result.get(task_prompt, "")
+        logger.info(f"Florence-2 캡션: {caption[:100]}...")
         return caption
     except Exception as e:
         logger.error(f"Florence-2 캡션 생성 오류: {e}")

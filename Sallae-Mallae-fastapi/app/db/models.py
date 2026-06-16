@@ -1,6 +1,6 @@
 """SQLAlchemy ORM 모델"""
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, func
+from sqlalchemy import String, Text, DateTime, Float, Boolean, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.database import Base
 
@@ -16,7 +16,7 @@ class HistoryRecord(Base):
 
     # AI 분석 요약
     question: Mapped[str | None] = mapped_column(Text, nullable=True)
-    caption: Mapped[str | None] = mapped_column(Text, nullable=True)   # Florence-2 캡션
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     caution: Mapped[str | None] = mapped_column(Text, nullable=True)
     recommendation: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -30,6 +30,35 @@ class HistoryRecord(Base):
 
     # 이미지 (설정에서 사진 서버 저장 ON 시에만 저장)
     image_base64: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class LabelRecord(Base):
+    """파인튜닝 라벨링 기록"""
+    __tablename__ = "labels"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    # YOLO 감지 결과 (가장 신뢰도 높은 객체)
+    primary_label: Mapped[str] = mapped_column(String(100), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # 전체 감지 결과 JSON (모든 바운딩박스 포함)
+    detections_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # 수동 검수
+    corrected_label: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # 사용자 힌트 (맥락 06화면 category 값)
+    category_hint: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # 저장된 파일 경로 (dataset 폴더 내)
+    image_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    label_path: Mapped[str | None] = mapped_column(Text, nullable=True)  # YOLO .txt 파일
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

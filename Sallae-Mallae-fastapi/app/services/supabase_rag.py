@@ -57,7 +57,7 @@ async def query_rag_context(
         
         # match_products RPC 호출
         rpc_response = client.rpc(
-            "match_products", 
+            "products", 
             {
                 "query_embedding": query_vector,
                 "match_threshold": 0.4, 
