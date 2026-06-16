@@ -22,6 +22,8 @@ async def get_embedding(text: str) -> list[float]:
     
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(url, json=payload)
+        if resp.status_code != 200:
+                logger.error(f"🔥 Supabase 에러 상세 원인: {resp.text}")
         resp.raise_for_status()
         data = resp.json()
         return data["embedding"]["values"]
@@ -48,8 +50,7 @@ async def search(caption: str) -> str:
         }
         payload = {
             "query_embedding": query_embedding,
-            "filter_category": "", # 만약 함수에서 카테고리 필터를 받는다면 이렇게 빈 문자열이라도 넘겨줘야 합니다.
-            "match_count": settings.supabase_match_count,
+            "match_count": settings.supabase_match_count # ⭕️ 이렇게 넣어야 DB 함수랑 짝이 맞습니다!
         }
 
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -75,7 +76,8 @@ async def search(caption: str) -> str:
         if e.response.status_code == 404:
              logger.error("Supabase 에러: 'match_products' 함수를 찾을 수 없습니다. DB SQL 쿼리를 다시 확인하세요.")
         else:
-             logger.error(f"Supabase RAG 검색 HTTP 오류: {e}")
+             # 💡 여기가 핵심입니다! Supabase가 보내온 진짜 속마음(e.response.text)을 여기서 출력합니다.
+             logger.error(f"🔥 Supabase 진짜 에러 원인: {e.response.text}")
         return ""
     except Exception as e:
         logger.error(f"Supabase RAG 검색 오류: {e}")

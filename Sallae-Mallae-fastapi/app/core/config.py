@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     app_name: str = "살래말래 API"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
-
+    groq_api_key: str | None = None  # 💡 [여기 추가!] Pydantic이 튕겨내지 않도록 명부에 등록해줍니다!
     # Gemini
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_key: str = ""
     supabase_table: str = "products"      # RAG 검색 테이블
-    supabase_match_count: int = 5         # 검색 결과 개수
+    supabase_match_count: int = 2        # 검색 결과 개수
 
     # 이미지 저장
     save_images: bool = False
