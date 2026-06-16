@@ -10,7 +10,7 @@ async def main():
     florence.load_model(settings.florence_model_id)
 
     # 2. 이미지 캡션 생성
-    image_path = "app/test.png"
+    image_path = "app/test2.png"
     caption = florence.test_local_image(image_path)
     print(f"\n===== FLORENCE CAPTION =====\n{caption}")
 
@@ -23,18 +23,23 @@ async def main():
 
     # 4. 최종 판단 (Gemini)
     # 스키마에 맞게 ContextInput 객체 사용
+    # test_request = AnalyzeRequest(
+    #     image_base64="dummy", 
+    #     question="이 신발 살 만한가요?",
+    #     context=ContextInput(
+    #         category="Shoes",
+    #         price="280,000원",
+    #         purpose="데일리 운동화",
+    #         criteria=["가격", "착화감"]
+    #     ),
+    #     save_image=False
+    # )
     test_request = AnalyzeRequest(
         image_base64="dummy", 
-        question="이 신발 살 만한가요?",
-        context=ContextInput(
-            category="Shoes",
-            price="280,000원",
-            purpose="데일리 운동화",
-            criteria=["가격", "착화감"]
-        ),
-        save_image=False
+        question="이 신발 어때?",
+        # context를 아예 안 넣거나 빈 객체로 넣으면 됩니다
+        context=ContextInput() 
     )
-    
     print("\n===== GEMINI JUDGEMENT (판단 중...) =====")
     final_result = await judge_purchase(caption, rag_context, test_request)
     
