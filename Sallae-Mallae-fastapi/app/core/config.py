@@ -10,11 +10,19 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
 
+    # Florence-2
+    florence_model_id: str = "microsoft/Florence-2-base"
+
+    # Supabase RAG
+    supabase_url: str = ""
+    supabase_key: str = ""
+    supabase_table: str = "products"      # RAG 검색 테이블
+    supabase_match_count: int = 5         # 검색 결과 개수
+
     # 이미지 저장
     save_images: bool = False
 
     # YOLO 모델 (라벨링/파인튜닝용)
-    # yolo11n.pt (가벼움) / yolo11s.pt / yolo11m.pt (정확도 높음)
     yolo_model: str = "yolo11n.pt"
 
     # DB
