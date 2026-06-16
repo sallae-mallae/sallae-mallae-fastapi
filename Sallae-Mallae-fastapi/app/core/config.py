@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # DB
     database_url: str = "sqlite+aiosqlite:///./sallae_mallae.db"
 
+    # JWT
+    jwt_secret_key: str = "sallae-mallae-secret-key-change-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 24 * 7  # 7일
+
     class Config:
         env_file = ".env"
 

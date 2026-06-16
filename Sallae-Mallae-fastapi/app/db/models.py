@@ -5,6 +5,20 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.database import Base
 
 
+class User(Base):
+    """회원 테이블"""
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    nickname: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
 class HistoryRecord(Base):
     """구매 판단 기록 (화면 13 - History)"""
     __tablename__ = "history"
