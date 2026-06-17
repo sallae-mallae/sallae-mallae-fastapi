@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_key: str = ""
     supabase_table: str = "products"      # RAG 검색 테이블
-    supabase_match_count: int = 2        # 검색 결과 개수
+    supabase_match_count: int = 4        # 검색 결과 개수
 
     # 이미지 저장
     save_images: bool = False

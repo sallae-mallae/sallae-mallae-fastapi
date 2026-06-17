@@ -14,17 +14,23 @@ logger = logging.getLogger(__name__)
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
+# app/services/llm.py 상단 수정본
+
 SYSTEM_PROMPT = """너는 사용자의 지갑을 지키는 '극딜 충동구매 방지 AI'다. 
 친절함은 버리고, 친구처럼 반말로 뼈 때리는 팩트폭행 잔소리를 해라.
-상품 이미지, 맥락, RAG 후회 데이터를 바탕으로 통장 잔고와 가성비를 따져서 구매를 뜯어말려라.
+상품 이미지, 사진 속 글자(OCR), 맥락, RAG 후회 데이터를 바탕으로 가성비를 따져서 구매를 뜯어말려라.
 
 판단 기준:
 - buy: 완벽히 합리적일 때만 허락 (그래도 쿨하게 칭찬할 것)
 - maybe: 굳이 지금? (한 번 더 생각하라고 잔소리)
 - no: 예산 초과, 예쁜 쓰레기 (호구 당하지 말라고 극딜)
+
 [중요 규칙]
-- 만약 RAG 데이터가 현재 상품과 완전히 무관하거나 너무 정보가 부족하면, 억지로 연관 짓지 말고 솔직하게 '관련된 후회 사례가 없음'이라고 밝히고 상품 정보와 사용자 입력값에만 집중해서 판단해.
-출력은 반드시 아래 JSON 스키마를 엄격히 따를 것. (이유는 최대 2문장으로 짧고 강렬하게)
+- 💡 [핵심] '사진 속 글자(OCR)'에 가격, 브랜드, 모델명 등이 보인다면 최우선 팩트로 삼아서 잔소리해.
+- 만약 RAG 데이터가 현재 상품과 무관하면, 억지로 연관 짓지 말고 상품 정보와 사용자 입력값에만 집중해.
+- 저렴한 생필품은 관대하게 판단해.
+
+출력은 반드시 아래 JSON 스키마를 엄격히 따를 것. (이유는 최대 2~3문장으로 짧고 강렬하게)
 {
   "verdict": "buy" | "maybe" | "no",
   "reason": "팩트폭행이 담긴 찰진 잔소리 (2~3문장)",
@@ -34,8 +40,15 @@ SYSTEM_PROMPT = """너는 사용자의 지갑을 지키는 '극딜 충동구매 
 
 def _build_prompt(caption: str, rag_context: str, request: AnalyzeRequest) -> str:
     ctx = request.context
+    
+    # 💡 [핵심] 프론트엔드에서 넘어온 ML Kit OCR 데이터가 있다면 프롬프트에 추가!
+    # getattr를 쓰는 이유는 기존 테스트 코드나 다른 곳에서 ocr_text를 안 보냈을 때 에러 방지용입니다.
+    ocr_data = getattr(request, 'ocr_text', None)
+    ocr_info = f"사진 속 글자(OCR): {ocr_data}" if ocr_data else "사진 속 글자: 없음"
+
     parts = [
         f"이미지: {caption}",
+        ocr_info,  # 💡 Groq야, 이것도 읽어봐!
         f"질문: {request.question or '없음'}",
         f"가격: {ctx.price or '미입력'}, 목적: {ctx.purpose or '미입력'}, 상태: {_condition_label(ctx.condition)}",
     ]
@@ -43,6 +56,7 @@ def _build_prompt(caption: str, rag_context: str, request: AnalyzeRequest) -> st
         parts.append(f"RAG 데이터: {rag_context}")
     return " | ".join(parts)
 
+# ... (아래 judge 함수 코드는 올려주신 그대로 두시면 됩니다!) ...
 def _condition_label(condition) -> str:
     mapping = {"good": "좋음", "normal": "보통", "poor": "불량"}
     return mapping.get(str(condition), "미입력") if condition else "미입력"
