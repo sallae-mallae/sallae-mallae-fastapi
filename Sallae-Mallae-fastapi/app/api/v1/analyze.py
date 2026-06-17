@@ -4,7 +4,7 @@
 """
 import base64
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
@@ -45,7 +45,7 @@ async def _run_pipeline(
 
     # 3. Supabase RAG: 캡션 → 관련 정보 검색
     try:
-        rag_context = await rag.search(caption)
+        rag_context = await rag.search(caption, category=request.context.category)
     except Exception as e:
         logger.warning(f"RAG 검색 실패 (무시하고 진행): {e}")
         rag_context = ""
@@ -102,38 +102,20 @@ async def analyze_product(
     response_model=AnalyzeResponse,
     summary="상품 구매 판단 — Swagger 테스트용 (파일 업로드)",
     description="""
-**Swagger UI / Postman 테스트 전용** — 이미지 파일을 직접 업로드합니다.
-base64 변환 없이 바로 테스트할 수 있습니다.
-
-나머지 파라미터(question, category 등)는 Form 필드로 입력하세요.
+**Swagger UI / Postman 테스트 전용** — 상품 이미지 파일만 업로드하면
+사진만으로 살래/고민/말래 판단을 반환합니다.
 """,
 )
 async def analyze_product_test(
     image: UploadFile = File(..., description="상품 이미지 파일 (JPEG)"),
-    question: str | None = Form(None, example="이 가방 살 만한가요?"),
-    category: str | None = Form(None, example="가방"),
-    price: str | None = Form(None, example="50,000원"),
-    purpose: str | None = Form(None, example="매일 쓰는 가방"),
-    condition: str | None = Form(None, description="good / normal / poor"),
-    criteria: str | None = Form(None, description="콤마 구분. 예: 가격,상태"),
-    ai_model: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
 ) -> AnalyzeResponse:
     raw = await image.read()
     image_base64 = base64.b64encode(raw).decode()
 
-    criteria_list = [c.strip() for c in criteria.split(",")] if criteria else []
-
     request = AnalyzeRequest(
         image_base64=image_base64,
-        question=question,
-        context=ContextInput(
-            category=category,
-            price=price,
-            purpose=purpose,
-            condition=condition,
-            criteria=criteria_list,
-        ),
+        context=ContextInput(),
         save_image=False,
     )
-    return await _run_pipeline(request, ai_model, db)
+    return await _run_pipeline(request, None, db)

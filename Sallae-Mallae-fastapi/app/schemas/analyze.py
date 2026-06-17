@@ -35,7 +35,10 @@ class AnalyzeResponse(BaseModel):
     """서버 → Flutter 분석 응답"""
     verdict: Verdict
     verdict_label: str = Field(..., description="살래요/고민해요/말래요")
+    product_info: str | None = Field(None, description="사진 속 제품 상세 정보")
     reason: str
+    pros: str | None = Field(None, description="이 상품을 사면 좋은 점")
+    cons: str | None = Field(None, description="이 상품의 단점/주의할 점")
     caution: str | None = None
     recommendation: str | None = None
     caption: str = Field(..., description="Florence-2 캡션")

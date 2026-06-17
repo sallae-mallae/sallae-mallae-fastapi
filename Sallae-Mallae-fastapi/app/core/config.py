@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # Gemini
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
 
     # Florence-2
     florence_model_id: str = "microsoft/Florence-2-base"

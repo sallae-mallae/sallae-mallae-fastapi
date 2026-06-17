@@ -21,21 +21,44 @@ def load_model(model_id: str) -> None:
     global _model, _processor, _device
     try:
         import torch
+        import transformers.dynamic_module_utils as _dmu
+        import transformers.utils.import_utils as _import_utils
+
+        # flash_attn import 체크 우회 (CPU 환경)
+        _orig_check = _dmu.check_imports
+        def _patched_check(filename):
+            try:
+                return _orig_check(filename)
+            except ImportError as e:
+                if "flash_attn" in str(e):
+                    return []
+                raise
+        _dmu.check_imports = _patched_check
+        _import_utils.is_flash_attn_2_available = lambda: False
+        _import_utils.is_flash_attn_greater_or_equal_2_10 = lambda: False
+
         from transformers import AutoProcessor, AutoModelForCausalLM
 
         _device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Florence-2 로드 시작: {model_id} (device={_device})")
 
-        _processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+        _processor = AutoProcessor.from_pretrained(
+            model_id, trust_remote_code=True, revision="main"
+        )
         _model = AutoModelForCausalLM.from_pretrained(
             model_id,
             torch_dtype=torch.float16 if _device == "cuda" else torch.float32,
             trust_remote_code=True,
+            revision="main",
+            ignore_mismatched_sizes=True,
+            attn_implementation="eager",  # flash_attn 없이 CPU에서 동작
         ).to(_device)
         _model.eval()
         logger.info("Florence-2 로드 완료 ✅")
     except Exception as e:
+        import traceback
         logger.warning(f"Florence-2 로드 실패 (fallback 모드로 동작): {e}")
+        logger.warning(traceback.format_exc())
         _model = None
         _processor = None
 
