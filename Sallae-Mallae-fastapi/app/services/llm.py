@@ -40,21 +40,30 @@ SYSTEM_PROMPT = """너는 사용자의 지갑을 지키는 '극딜 충동구매 
 
 def _build_prompt(caption: str, rag_context: str, request: AnalyzeRequest) -> str:
     ctx = request.context
-    
-    # 💡 [핵심] 프론트엔드에서 넘어온 ML Kit OCR 데이터가 있다면 프롬프트에 추가!
-    # getattr를 쓰는 이유는 기존 테스트 코드나 다른 곳에서 ocr_text를 안 보냈을 때 에러 방지용입니다.
     ocr_data = getattr(request, 'ocr_text', None)
-    ocr_info = f"사진 속 글자(OCR): {ocr_data}" if ocr_data else "사진 속 글자: 없음"
-
-    parts = [
-        f"이미지: {caption}",
-        ocr_info,  # 💡 Groq야, 이것도 읽어봐!
-        f"질문: {request.question or '없음'}",
-        f"가격: {ctx.price or '미입력'}, 목적: {ctx.purpose or '미입력'}, 상태: {_condition_label(ctx.condition)}",
+    
+    # 💡 AI가 절대 헷갈리지 않게 마크다운(###) 구조로 명확히 정리합니다.
+    prompt_lines = [
+        "### [1. 시각 분석 데이터]",
+        f"- 이미지 상황(Florence): {caption}",
+        f"- 사진 속 글자(OCR): {ocr_data if ocr_data else '없음 (글자 안 보임)'}",
+        "",
+        "### [2. 사용자 입력 데이터]",
+        f"- 질문: {request.question or '없음'}",
+        f"- 희망 가격대: {ctx.price or '미입력 (단, 위 OCR 텍스트에 가격이 있다면 무조건 그것을 기준으로 판단해)'}",
+        f"- 목적: {ctx.purpose or '일상용도 (미입력 시 기본값)'}",
+        f"- 상태: {_condition_label(ctx.condition)}"
     ]
+    
     if rag_context:
-        parts.append(f"RAG 데이터: {rag_context}")
-    return " | ".join(parts)
+        prompt_lines.extend(["", "### [3. RAG 관련 후회/조언 데이터]", rag_context])
+        
+    final_prompt = "\n".join(prompt_lines)
+    
+    # 💡 터미널에서 데이터가 제대로 들어갔는지 눈으로 확인하는 용도!
+    logger.info(f"🔥 AI에게 전달된 최종 프롬프트:\n{final_prompt}")
+    
+    return final_prompt
 
 # ... (아래 judge 함수 코드는 올려주신 그대로 두시면 됩니다!) ...
 def _condition_label(condition) -> str:

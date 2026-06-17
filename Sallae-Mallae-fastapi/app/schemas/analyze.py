@@ -23,11 +23,16 @@ class ContextInput(BaseModel):
     criteria: list[str] = Field(default_factory=list, example=["가격", "상태"])
 
 
+# 현재 동환님의 schemas/analyze.py 상태
 class AnalyzeRequest(BaseModel):
     """Flutter → 서버 분석 요청"""
     image_base64: str = Field(..., description="JPEG base64 인코딩 이미지")
     question: str | None = Field(None, example="이 가방 살 만한가요?")
     context: ContextInput = Field(default_factory=ContextInput)
+    
+    # 💡 [여기 추가!] 밑빠진 독을 막아주는 핵심 코드입니다.
+    ocr_text: str | None = Field(None, description="프론트엔드 ML Kit 텍스트")
+    
     save_image: bool = Field(False, description="이미지 서버 저장 여부")
 
 

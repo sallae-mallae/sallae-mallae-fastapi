@@ -17,7 +17,8 @@ async def get_embedding(text: str) -> list[float]:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key={settings.gemini_api_key}"
     payload = {
         "model": "models/gemini-embedding-001",
-        "content": {"parts": [{"text": text}]}
+        "content": {"parts": [{"text": text}]},
+        "outputDimensionality": 768  # 💡 검색할 때도 똑같이 768차원으로 맞춰주기!
     }
     
     async with httpx.AsyncClient(timeout=10.0) as client:
