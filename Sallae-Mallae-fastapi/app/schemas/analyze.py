@@ -4,42 +4,43 @@ from pydantic import BaseModel, Field
 
 
 class ProductCondition(str, Enum):
-    """상품 상태 (화면 06)"""
     good = "good"       # 문음
     normal = "normal"   # 보통
     poor = "poor"       # 불량
 
 
 class Verdict(str, Enum):
-    """판단 결과"""
-    buy = "buy"       # 살래요 🟢
-    maybe = "maybe"   # 고민해요 🟡
-    no = "no"         # 말래요 🔴
+    buy = "buy"       # 살래요
+    maybe = "maybe"   # 고민해요
+    no = "no"         # 말래요
 
 
 class ContextInput(BaseModel):
-    """맥락 입력 (화면 06 - UX Context Input)"""
-    category: str | None = Field(None, example="가방", description="상품 분류")
-    price: str | None = Field(None, example="50,000원", description="가격")
-    purpose: str | None = Field(None, example="매일 쓰는 가방이 필요해요", description="사용 목적")
-    condition: ProductCondition | None = Field(None, description="상품 상태: good/normal/poor")
-    criteria: list[str] = Field(default_factory=list, example=["가격", "상태"], description="중요 기준")
+    category: str | None = Field(None, example="가방")
+    price: str | None = Field(None, example="50,000원")
+    purpose: str | None = Field(None, example="매일 쓰는 가방이 필요해요")
+    condition: ProductCondition | None = Field(None, description="good/normal/poor")
+    criteria: list[str] = Field(default_factory=list, example=["가격", "상태"])
 
 
 class AnalyzeRequest(BaseModel):
     """Flutter → 서버 분석 요청"""
-    image_base64: str = Field(..., description="카메라 촬영 이미지 (base64)")
-    question: str | None = Field(None, example="이 가방 살 만한가요?", description="사용자 질문")
-    context: ContextInput = Field(default_factory=ContextInput, description="맥락 정보")
-    save_image: bool = Field(False, description="이미지 서버 저장 여부 (설정 화면 연동)")
+    image_base64: str = Field(..., description="JPEG base64 인코딩 이미지")
+    question: str | None = Field(None, example="이 가방 살 만한가요?")
+    context: ContextInput = Field(default_factory=ContextInput)
+    save_image: bool = Field(False, description="이미지 서버 저장 여부")
 
 
 class AnalyzeResponse(BaseModel):
     """서버 → Flutter 분석 응답"""
-    verdict: Verdict = Field(..., description="판단 결과: buy/maybe/no")
-    verdict_label: str = Field(..., description="판단 레이블: 살래요/고민해요/말래요")
-    reason: str = Field(..., description="판단 이유")
-    caution: str | None = Field(None, description="주의사항 (buy/maybe 시)")
-    recommendation: str | None = Field(None, description="추천 행동 (maybe/no 시)")
-    caption: str = Field(..., description="Florence-2 상품 인식 캡션")
-    history_id: int | None = Field(None, description="저장된 기록 ID")
+    verdict: Verdict
+    verdict_label: str = Field(..., description="살래요/고민해요/말래요")
+    product_info: str | None = Field(None, description="사진 속 제품 상세 정보")
+    reason: str
+    pros: str | None = Field(None, description="이 상품을 사면 좋은 점")
+    cons: str | None = Field(None, description="이 상품의 단점/주의할 점")
+    caution: str | None = None
+    recommendation: str | None = None
+    caption: str = Field(..., description="Florence-2 캡션")
+    rag_used: bool = Field(False, description="RAG 컨텍스트 사용 여부")
+    history_id: int | None = None
