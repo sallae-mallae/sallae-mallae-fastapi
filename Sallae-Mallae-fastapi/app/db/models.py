@@ -27,7 +27,8 @@ class ChatMessage(Base):
         ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)   # "user" | "assistant"
-    content: Mapped[str] = mapped_column(Text, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)       # 말풍선 텍스트
+    data: Mapped[str | None] = mapped_column(Text, nullable=True)   # 구조화 분석결과 JSON(assistant 전용)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

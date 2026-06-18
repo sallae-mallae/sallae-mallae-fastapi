@@ -10,10 +10,23 @@ class MessageInput(BaseModel):
     content: str = Field(..., examples=["이 신발 살 만한가요?"])
 
 
+class AnalysisData(BaseModel):
+    """assistant 메시지에 담기는 구조화 분석 결과 (프론트가 파싱 없이 그대로 사용)"""
+    verdict: str
+    verdict_label: str
+    product_info: str | None = None
+    reason: str
+    pros: str | None = None
+    cons: str | None = None
+    caution: str | None = None
+    recommendation: str | None = None
+
+
 class MessageItem(BaseModel):
     id: int
     role: str
-    content: str
+    content: str                          # 말풍선용 텍스트
+    data: AnalysisData | None = None      # 구조화 결과 (assistant 메시지에만, user는 null)
     created_at: datetime
 
     model_config = {"from_attributes": True}

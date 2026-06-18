@@ -2,6 +2,8 @@
 /api/v1/chat — AI 채팅 대화 기록 저장/조회
 세션(ChatSession) 하나에 여러 메시지(ChatMessage)가 쌓이는 구조
 """
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,6 +39,20 @@ def _format_answer(r) -> str:
     if r.recommendation:
         lines.append(f"💡 {r.recommendation}")
     return "\n".join(lines)
+
+
+def _answer_data(r) -> dict:
+    """AI 분석 결과를 구조화 dict로 (프론트가 파싱 없이 사용)"""
+    return {
+        "verdict": r.verdict.value if hasattr(r.verdict, "value") else r.verdict,
+        "verdict_label": r.verdict_label,
+        "product_info": r.product_info,
+        "reason": r.reason,
+        "pros": r.pros,
+        "cons": r.cons,
+        "caution": r.caution,
+        "recommendation": r.recommendation,
+    }
 
 
 @router.post("/analyze", response_model=ChatAnalyzeResponse,
@@ -95,7 +111,12 @@ async def chat_analyze(body: ChatAnalyzeRequest, db: AsyncSession = Depends(get_
 
     # 4. 대화 저장 (사용자 질문 + AI 답변)
     db.add(ChatMessage(session_id=session.id, role="user", content=body.question))
-    db.add(ChatMessage(session_id=session.id, role="assistant", content=_format_answer(result)))
+    db.add(ChatMessage(
+        session_id=session.id,
+        role="assistant",
+        content=_format_answer(result),
+        data=json.dumps(_answer_data(result), ensure_ascii=False),
+    ))
     await db.commit()
 
     # 5. '최근 판단' 히스토리에도 저장 (GET /api/v1/history 용)
@@ -216,5 +237,16 @@ async def _build_detail(db: AsyncSession, session_id: int) -> SessionDetailRespo
         title=session.title,
         user_id=session.user_id,
         created_at=session.created_at,
-        messages=[MessageItem.model_validate(r) for r in rows],
+        messages=[_to_message_item(r) for r in rows],
+    )
+
+
+def _to_message_item(r) -> MessageItem:
+    """ChatMessage ORM → MessageItem (data JSON 문자열을 객체로 복원)"""
+    return MessageItem(
+        id=r.id,
+        role=r.role,
+        content=r.content,
+        data=json.loads(r.data) if r.data else None,
+        created_at=r.created_at,
     )
