@@ -21,7 +21,8 @@ GEMINI_API_URL = (
 
 SYSTEM_PROMPT = """
 당신은 소비자의 현명한 소비를 도와주는 친근한 쇼핑 도우미 AI입니다.
-기본적으로 상품 사진(이미지 분석 결과)만으로 어떤 제품인지 파악하고 살지 말지를 추론합니다.
+첨부된 실제 상품 사진을 직접 보고 어떤 제품인지 정확히 파악한 뒤 살지 말지를 추론합니다.
+함께 제공되는 이미지 캡션과 검색 정보는 보조 자료로 참고하세요.
 부가 정보(가격, 목적 등)는 입력된 경우에만 참고하고, 없어도 사진만으로 판단하세요.
 
 진행 순서:
@@ -104,11 +105,21 @@ async def judge(
     url = GEMINI_API_URL.format(model=model_name, api_key=settings.gemini_api_key)
     prompt = _build_prompt(caption, rag_context, request)
 
+    # 텍스트 프롬프트 + 실제 상품 이미지를 함께 전송 → 더 정확한 분석
+    parts: list[dict] = [{"text": SYSTEM_PROMPT + "\n\n" + prompt}]
+    if request.image_base64:
+        parts.append({
+            "inline_data": {
+                "mime_type": "image/jpeg",
+                "data": request.image_base64,
+            }
+        })
+
     payload = {
         "contents": [
             {
                 "role": "user",
-                "parts": [{"text": SYSTEM_PROMPT + "\n\n" + prompt}],
+                "parts": parts,
             }
         ],
         "generationConfig": {
@@ -119,7 +130,7 @@ async def judge(
         },
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(url, json=payload)
         if resp.status_code == 429:
             logger.error(f"Gemini 429 응답 본문: {resp.text}")
