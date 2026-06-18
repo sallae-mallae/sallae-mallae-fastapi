@@ -20,6 +20,7 @@ class AnalysisData(BaseModel):
     cons: str | None = None
     caution: str | None = None
     recommendation: str | None = None
+    image_base64: str | None = None   # 분석에 사용된 상품 이미지 (자세히 보기에 표시)
 
 
 class MessageItem(BaseModel):

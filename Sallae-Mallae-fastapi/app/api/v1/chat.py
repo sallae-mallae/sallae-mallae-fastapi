@@ -41,7 +41,7 @@ def _format_answer(r) -> str:
     return "\n".join(lines)
 
 
-def _answer_data(r) -> dict:
+def _answer_data(r, image_base64: str | None = None) -> dict:
     """AI 분석 결과를 구조화 dict로 (프론트가 파싱 없이 사용)"""
     return {
         "verdict": r.verdict.value if hasattr(r.verdict, "value") else r.verdict,
@@ -52,6 +52,7 @@ def _answer_data(r) -> dict:
         "cons": r.cons,
         "caution": r.caution,
         "recommendation": r.recommendation,
+        "image_base64": image_base64,   # 자세히 보기에 표시할 분석 이미지
     }
 
 
@@ -115,7 +116,7 @@ async def chat_analyze(body: ChatAnalyzeRequest, db: AsyncSession = Depends(get_
         session_id=session.id,
         role="assistant",
         content=_format_answer(result),
-        data=json.dumps(_answer_data(result), ensure_ascii=False),
+        data=json.dumps(_answer_data(result, image_b64), ensure_ascii=False),
     ))
     await db.commit()
 
