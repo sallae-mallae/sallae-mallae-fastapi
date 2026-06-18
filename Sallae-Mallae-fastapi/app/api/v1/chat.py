@@ -20,6 +20,7 @@ from app.schemas.chat import (
     ChatAnalyzeResponse,
 )
 from app.services import florence, rag, llm
+from app.services.history_service import save_history
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -96,6 +97,12 @@ async def chat_analyze(body: ChatAnalyzeRequest, db: AsyncSession = Depends(get_
     db.add(ChatMessage(session_id=session.id, role="user", content=body.question))
     db.add(ChatMessage(session_id=session.id, role="assistant", content=_format_answer(result)))
     await db.commit()
+
+    # 5. '최근 판단' 히스토리에도 저장 (GET /api/v1/history 용)
+    try:
+        await save_history(db, analyze_req, result)
+    except Exception:
+        pass  # 히스토리 저장 실패해도 채팅 응답은 정상 반환
 
     detail = await _build_detail(db, session.id)
     return ChatAnalyzeResponse(
