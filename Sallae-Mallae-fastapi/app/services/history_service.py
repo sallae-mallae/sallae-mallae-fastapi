@@ -21,6 +21,9 @@ async def save_history(
         verdict=response.verdict.value,
         question=request.question,
         caption=response.caption,
+        product_info=response.product_info,
+        pros=response.pros,
+        cons=response.cons,
         reason=response.reason,
         caution=response.caution,
         recommendation=response.recommendation,
@@ -29,7 +32,7 @@ async def save_history(
         purpose=ctx.purpose,
         condition=ctx.condition.value if ctx.condition else None,
         criteria=",".join(ctx.criteria) if ctx.criteria else None,
-        image_base64=request.image_base64 if request.save_image else None,
+        image_base64=request.image_base64,  # 히스토리 표시용으로 항상 저장
     )
     db.add(record)
     await db.commit()
@@ -43,6 +46,9 @@ def _to_item(record: HistoryRecord) -> HistoryItem:
         verdict=Verdict(record.verdict),
         verdict_label=VERDICT_LABEL[record.verdict],
         question=record.question,
+        product_info=record.product_info,
+        pros=record.pros,
+        cons=record.cons,
         reason=record.reason,
         caution=record.caution,
         recommendation=record.recommendation,
@@ -52,6 +58,7 @@ def _to_item(record: HistoryRecord) -> HistoryItem:
         condition=record.condition,
         criteria=record.criteria.split(",") if record.criteria else [],
         has_image=record.image_base64 is not None,
+        image_base64=record.image_base64,
         created_at=record.created_at,
     )
 
@@ -83,10 +90,7 @@ async def get_history_detail(db: AsyncSession, record_id: int) -> HistoryDetailR
     if not record:
         return None
     base = _to_item(record)
-    return HistoryDetailResponse(
-        **base.model_dump(),
-        image_base64=record.image_base64,
-    )
+    return HistoryDetailResponse(**base.model_dump())
 
 
 async def delete_history(db: AsyncSession, record_id: int) -> bool:

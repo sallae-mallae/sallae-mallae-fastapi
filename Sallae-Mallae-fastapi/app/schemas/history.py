@@ -9,6 +9,9 @@ class HistoryItem(BaseModel):
     verdict: Verdict
     verdict_label: str
     question: str | None
+    product_info: str | None   # 한국어 제품 상세 설명 (화면 표시용)
+    pros: str | None
+    cons: str | None
     reason: str
     caution: str | None
     recommendation: str | None
@@ -17,7 +20,8 @@ class HistoryItem(BaseModel):
     purpose: str | None
     condition: str | None
     criteria: list[str]
-    has_image: bool   # 이미지 저장 여부 (image_base64 노출 X)
+    has_image: bool                    # 이미지 저장 여부
+    image_base64: str | None = None    # 업로드된 상품 이미지 (프론트 표시용)
     created_at: datetime
 
     model_config = {"from_attributes": True}

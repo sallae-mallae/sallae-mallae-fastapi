@@ -30,7 +30,10 @@ class HistoryRecord(Base):
 
     # AI 분석 요약
     question: Mapped[str | None] = mapped_column(Text, nullable=True)
-    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)        # Florence-2 영어 캡션 (내부용)
+    product_info: Mapped[str | None] = mapped_column(Text, nullable=True)   # 한국어 제품 상세 설명 (화면 표시용)
+    pros: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cons: Mapped[str | None] = mapped_column(Text, nullable=True)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     caution: Mapped[str | None] = mapped_column(Text, nullable=True)
     recommendation: Mapped[str | None] = mapped_column(Text, nullable=True)
