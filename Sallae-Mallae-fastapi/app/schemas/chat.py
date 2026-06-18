@@ -2,6 +2,8 @@
 from datetime import datetime
 from pydantic import BaseModel, Field
 
+from app.schemas.analyze import ContextInput, Verdict
+
 
 class MessageInput(BaseModel):
     role: str = Field(..., description="user | assistant", examples=["user"])
@@ -47,4 +49,31 @@ class SessionDetailResponse(BaseModel):
     title: str | None
     user_id: int | None
     created_at: datetime
+    messages: list[MessageItem]
+
+
+# ── 통합: 채팅형 분석 (분석 + 대화 저장) ──────────────────────────
+class ChatAnalyzeRequest(BaseModel):
+    session_id: int | None = Field(None, description="없으면 새 대화방 생성")
+    user_id: int | None = None
+    question: str = Field(..., examples=["이거 살까 말까?"])
+    image_base64: str | None = Field(
+        None, description="트리거(살까/말까 등) 시에만 전송. 없으면 세션의 마지막 사진 재활용"
+    )
+    pro_mode: bool = Field(False, description="True면 Gemini에 이미지 직접 전송(정밀·비용↑)")
+    context: ContextInput = Field(default_factory=ContextInput)
+
+
+class ChatAnalyzeResponse(BaseModel):
+    session_id: int
+    verdict: Verdict
+    verdict_label: str
+    product_info: str | None = None
+    reason: str
+    pros: str | None = None
+    cons: str | None = None
+    caution: str | None = None
+    recommendation: str | None = None
+    pro_mode: bool
+    image_reused: bool   # 이전 사진 재활용 여부
     messages: list[MessageItem]

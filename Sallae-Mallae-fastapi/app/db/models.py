@@ -12,6 +12,7 @@ class ChatSession(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)   # 로그인 사용자(선택)
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    last_image_base64: Mapped[str | None] = mapped_column(Text, nullable=True)  # 마지막 전송 사진(텍스트만 올 때 재활용)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

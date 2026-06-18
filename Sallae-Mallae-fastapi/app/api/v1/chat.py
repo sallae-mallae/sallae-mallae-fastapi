@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.db.models import ChatSession, ChatMessage
+from app.schemas.analyze import AnalyzeRequest
 from app.schemas.chat import (
     CreateSessionRequest,
     AddMessageRequest,
@@ -15,9 +16,102 @@ from app.schemas.chat import (
     SessionListResponse,
     SessionDetailResponse,
     MessageItem,
+    ChatAnalyzeRequest,
+    ChatAnalyzeResponse,
 )
+from app.services import florence, rag, llm
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
+
+
+def _format_answer(r) -> str:
+    """AI 분석 결과를 채팅 말풍선용 텍스트로 조합"""
+    lines = [f"{r.verdict_label}! {r.reason}"]
+    if r.pros:
+        lines.append(f"\n👍 좋은 점: {r.pros}")
+    if r.cons:
+        lines.append(f"👎 아쉬운 점: {r.cons}")
+    if r.caution:
+        lines.append(f"⚠️ {r.caution}")
+    if r.recommendation:
+        lines.append(f"💡 {r.recommendation}")
+    return "\n".join(lines)
+
+
+@router.post("/analyze", response_model=ChatAnalyzeResponse,
+             summary="채팅형 분석 (분석 + 대화 자동 저장 통합)")
+async def chat_analyze(body: ChatAnalyzeRequest, db: AsyncSession = Depends(get_db)):
+    """
+    홈에서 사진+텍스트(또는 텍스트만) 전송 → 세션 확보 → 분석 → 대화 저장.
+    - session_id 없으면 새 대화방 생성
+    - image_base64 없으면 세션의 마지막 사진 재활용
+    - pro_mode True면 Gemini에 이미지 직접 전송
+    """
+    # 1. 세션 확보
+    if body.session_id is None:
+        session = ChatSession(title=(body.question or "새 대화")[:50], user_id=body.user_id)
+        db.add(session)
+        await db.flush()  # session.id 확보
+    else:
+        session = await db.get(ChatSession, body.session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    # 2. 이미지 결정 (트리거 사진 or 이전 사진 재활용)
+    image_reused = False
+    if body.image_base64:
+        image_b64 = body.image_base64
+        session.last_image_base64 = image_b64   # 세션에 최신 사진 기억
+    else:
+        image_b64 = session.last_image_base64
+        image_reused = True
+        if not image_b64:
+            raise HTTPException(status_code=422,
+                                detail="분석할 사진이 없습니다. 사진을 먼저 보내주세요.")
+
+    # 3. 분석 파이프라인 (Florence-2 → RAG → Gemini)
+    try:
+        caption = florence.generate_caption(image_b64)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"이미지 캡션 생성 오류: {e}")
+
+    try:
+        rag_ctx = await rag.search(caption, category=body.context.category)
+    except Exception:
+        rag_ctx = ""
+
+    analyze_req = AnalyzeRequest(
+        image_base64=image_b64,
+        question=body.question,
+        context=body.context,
+    )
+    try:
+        result = await llm.judge(caption, rag_ctx, analyze_req, send_image=body.pro_mode)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"AI 판단 오류: {e}")
+
+    # 4. 대화 저장 (사용자 질문 + AI 답변)
+    db.add(ChatMessage(session_id=session.id, role="user", content=body.question))
+    db.add(ChatMessage(session_id=session.id, role="assistant", content=_format_answer(result)))
+    await db.commit()
+
+    detail = await _build_detail(db, session.id)
+    return ChatAnalyzeResponse(
+        session_id=session.id,
+        verdict=result.verdict,
+        verdict_label=result.verdict_label,
+        product_info=result.product_info,
+        reason=result.reason,
+        pros=result.pros,
+        cons=result.cons,
+        caution=result.caution,
+        recommendation=result.recommendation,
+        pro_mode=body.pro_mode,
+        image_reused=image_reused,
+        messages=detail.messages,
+    )
 
 
 @router.post("/sessions", response_model=SessionDetailResponse, status_code=201,

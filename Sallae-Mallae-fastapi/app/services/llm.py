@@ -96,6 +96,7 @@ async def judge(
     rag_context: str,
     request: AnalyzeRequest,
     model: str | None = None,
+    send_image: bool = True,
 ) -> AnalyzeResponse:
     """Florence-2 캡션 + RAG 컨텍스트 → Gemini 판단"""
     if not settings.gemini_api_key:
@@ -105,9 +106,9 @@ async def judge(
     url = GEMINI_API_URL.format(model=model_name, api_key=settings.gemini_api_key)
     prompt = _build_prompt(caption, rag_context, request)
 
-    # 텍스트 프롬프트 + 실제 상품 이미지를 함께 전송 → 더 정확한 분석
+    # 텍스트 프롬프트 + 실제 상품 이미지를 함께 전송 → 더 정확한 분석 (Pro Mode)
     parts: list[dict] = [{"text": SYSTEM_PROMPT + "\n\n" + prompt}]
-    if request.image_base64:
+    if send_image and request.image_base64:
         parts.append({
             "inline_data": {
                 "mime_type": "image/jpeg",
